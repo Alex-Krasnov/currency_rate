@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Text;
 using System.Xml.Linq;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace CurrencyLoader
 {
@@ -19,8 +20,17 @@ namespace CurrencyLoader
         // Сохраняем данные за сегоня в бд
         public async Task DailyAsync()
         {
-            var rates = await GetDailyRatesAsync();
-            SaveDb(rates);
+            bool isExist = true;
+            using (var _context = new CurrencyRateContext())
+            {
+                isExist = _context.Rates.Any(e => e.Date == dateNow);
+            }
+
+            if (!isExist)
+            {
+                var rates = await GetDailyRatesAsync();
+                SaveDb(rates);
+            }
         }
 
         // Сохраняем данные за месяц в бд
@@ -30,8 +40,19 @@ namespace CurrencyLoader
 
             while (startDate <= dateNow)
             {
-                var rates = await GetRatesForDateAsync(startDate);
-                SaveDb(rates);
+
+                bool isExist = true;
+                using (var _context = new CurrencyRateContext())
+                {
+                    isExist = _context.Rates.Any(e => e.Date == startDate);
+                }
+
+                if (!isExist)
+                {
+                    var rates = await GetRatesForDateAsync(startDate);
+                    SaveDb(rates);
+                }
+
                 startDate = startDate.AddDays(1);
             }
         }
@@ -41,7 +62,7 @@ namespace CurrencyLoader
         {
             using (var client = new HttpClient())
             {
-                var response = await client.GetAsync(UrlStr);
+                var response = await client.GetAsync($"{UrlStr}?date_req={dateNow:dd/MM/yyyy}");
                 response.EnsureSuccessStatusCode();
                 var responseStream = await response.Content.ReadAsStreamAsync();
                 using (var reader = new StreamReader(responseStream, encoding))
